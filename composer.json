@@ -1,0 +1,24 @@
+{
+    "name": "dannyvdsluijs/advent-of-code-2023",
+    "description": "Solutions to the Advent of Code 2023 puzzles",
+    "type": "project",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Danny van der Sluijs",
+            "email": "danny.vandersluijs@icloud.com"
+        }
+    ],
+    "minimum-stability": "stable",
+    "require": {
+        "php": "^8.2",
+        "ext-curl": "*",
+        "rector/rector": "^0.14.8",
+        "phpstan/phpstan": "^1.9"
+    },
+    "autoload": {
+        "psr-4": {
+            "Dannyvdsluijs\\AdventOfCode2023\\": "src"
+        }
+    }
+}
