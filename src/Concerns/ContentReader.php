@@ -68,7 +68,7 @@ trait ContentReader
         return array_map(fn(string $line) => explode(' ', $line), $this->readInputAsLines());
     }
 
-    /** @return array<int, array<int, string>> */
+    /** @return array<int, array<int, int>> */
     public function readInputAsGridOfNumbers(): array
     {
         $grid = [];

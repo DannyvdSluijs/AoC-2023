@@ -10,135 +10,107 @@ class Day12
 {
     use ContentReader;
 
+    private $debug = false;
+    private array $cache = [];
+
     public function partOne(): string
     {
         $lines = $this->readInputAsLines();
-        $result = [];
+        $result = 0;
 
         foreach ($lines as $line) {
-            [$conditions, $groups] = explode(' ', $line);
-            $conditions = str_split($conditions);
+            [$pattern, $groups] = explode(' ', $line);
             $groups = array_map(intval(...), explode(',', $groups));
 
-            $result[] = $this->findValidArrangements($conditions, $groups);
+            $result += $this->calc($pattern, $groups);
+            $this->debug && print(str_repeat('-', 10) . PHP_EOL);
         }
 
-        return (string) array_sum($result);
+        return (string) $result;
     }
 
     public function partTwo(): string
     {
         $lines = $this->readInputAsLines();
-        $result = [];
-        $lineCount = count($lines);
-        foreach ($lines as $k => $line) {
-            printf("%d / %d\r\n", $k +1, $lineCount);
-            [$conditions, $groups] = explode(' ', $line);
-            $conditions = str_split(substr(str_repeat($conditions . '?', 5), 0, -1));
-            $groups = array_map(intval(...), explode(',', $groups));
-            $groups = [...$groups, ...$groups, ...$groups, ...$groups, ...$groups,];
+        $result = 0;
 
-            $result[] = $this->findValidArrangements($conditions, $groups);
+        foreach ($lines as $line) {
+            [$pattern, $groups] = explode(' ', $line);
+            $groups = array_map(intval(...), explode(',', $groups));
+            $groups = [...$groups, ...$groups, ...$groups, ...$groups, ...$groups];
+
+            $result += $this->calc(substr(str_repeat($pattern . '?', 5), 0, -1), $groups);
+            $this->debug && print(str_repeat('-', 10) . PHP_EOL);
         }
 
-        return (string) array_sum($result);
+        return (string) $result;
     }
 
-    private function findValidArrangements(array $conditions, array $groups, array $context = null): int
+    /**
+     * Since I was unable to build a performant enough algorithm (for part two) I've lookd into how others have solved this
+     * Below is based on https://www.reddit.com/r/adventofcode/comments/18hbbxe/2023_day_12python_stepbystep_tutorial_with_bonus/
+     *
+     * This approach differs from mine in that it was detecting per group when it detects a first pound sign. I was processing per character.
+     */
+    private function calc(string $record, array $groups): int
     {
-        if (\is_null($context)) {
-            $context = [
-                'unknowns' => array_keys(array_filter($conditions, fn(string $char) => $char === '?')),
-                'unknownsCount' => count(array_filter($conditions, fn(string $char) => $char === '?')),
-                'maxHashes' => array_sum($groups),
-                'hashCount' => count(array_filter($conditions, fn(string $char) => $char === '#')),
-                'groups' => [],
-                'currentGroup' => ['type' => null, 'count' => 0],
-                'hashPattern' => [],
-                'hashGroupsCount' => 0,
-                'pos' => 0,
-                'length' => count($conditions),
-                'last' => $conditions[array_key_first($conditions)],
-                'path' => [],
-            ];
+        $cacheKey = sprintf('%s-%s', $record, implode(',', $groups));
+        if (isset($this->cache[$cacheKey])) {
+            return $this->cache[$cacheKey];
         }
 
-        // Pre flight checks
-        if ($context['hashCount'] > $context['maxHashes']) {
-            return 0; // Hash count is over desired hash count
-        }
-        if ($context['hashCount'] + $context['unknownsCount'] < $context['maxHashes']) {
-            return 0; // Net enough unknowns to reach desired hash count
-        }
-        if ($context['hashPattern'] !== []) {
-            if (array_slice($groups, 0, $context['hashGroupsCount']) !== $context['hashPattern']) {
-                return 0;
-            }
-        }
-
-        for (; $context['pos'] < $context['length']; $context['pos']++) {
-            $current = $conditions[$context['pos']];
-            $context['last'] = $context['path'][$context['pos'] - 1] ?? '';
-
-            if ($current === '?') {
-                // Dot
-                $dotContext = $context;
-                array_shift($dotContext['unknowns']);
-                $dotContext['unknownsCount'] -= 1;
-                if ($dotContext['currentGroup']['type'] === '.') {
-                    $dotContext['currentGroup']['count'] += 1;
-                } else {
-                    if ($dotContext['currentGroup']['type'] === '#') {
-                        $dotContext['hashPattern'][] = $dotContext['currentGroup']['count'];
-                        $dotContext['hashGroupsCount'] += 1;
-                    }
-                    $dotContext['groups'][] = $dotContext['currentGroup'];
-                    $dotContext['currentGroup'] = ['type' => '.', 'count' => 1];
-                }
-                $dotContext['pos'] += 1;
-                $dotContext['path'][] = '.';
-                $dotResult = $this->findValidArrangements($conditions, $groups, $dotContext);
-                unset($dotContext);
-
-                // Hash
-                $hashContext = $context;
-                array_shift($hashContext['unknowns']);
-                $hashContext['unknownsCount'] -= 1;
-                if ($hashContext['currentGroup']['type'] === '#') {
-                    $hashContext['currentGroup']['count'] += 1;
-                } else {
-                    $hashContext['groups'][] = $hashContext['currentGroup'];
-                    $hashContext['currentGroup'] = ['type' => '#', 'count' => 1];
-                }
-                $hashContext['pos'] += 1;
-                $hashContext['hashCount'] += 1;
-                $hashContext['path'][] = '#';
-                $hashResult = $this->findValidArrangements($conditions, $groups, $hashContext);
-                unset($hashContext);
-
-                return $dotResult + $hashResult;
+        if ($groups === []) {
+            if (!str_contains($record, '#')) {
+                return 1;
             }
 
-            $context['path'][] = $current;
+            return 0;
+        }
 
-            if ($current === $context['last']) {
-                $context['currentGroup']['type'] = $current;
-                $context['currentGroup']['count'] += 1;
-            } else {
-                if ($context['currentGroup']['type'] === '#') {
-                    $context['hashPattern'][] = $context['currentGroup']['count'];
-                    $context['hashGroupsCount'] += 1;
-                }
-                $context['groups'][] = $context['currentGroup'];
-                $context['currentGroup'] = ['type' => $current, 'count' => 1];
+        if ($record === '') {
+            return 0;
+        }
+
+        $out = match ($record[0]) {
+            '#' => $this->pound($record, $groups),
+            '.' => $this->dot($record, $groups),
+            '?' => $this->pound($record, $groups) + $this->dot($record, $groups),
+        };
+
+        $this->debug && printf("'%s' %s -> %d" . PHP_EOL, $record, json_encode(($groups), JSON_THROW_ON_ERROR), $out);
+
+        $this->cache[$cacheKey] = $out;
+
+        return $out;
+    }
+
+    private function pound(string $record, array $groups): int
+    {
+        $nextGroup = $groups[0];
+        $thisGroup = substr($record, 0, $nextGroup);
+        $thisGroup = str_replace('?', '#', $thisGroup);
+
+        if ($thisGroup !== str_repeat('#', $nextGroup)) {
+            return 0;
+        }
+
+        if (strlen($record) === $nextGroup) {
+            if (count($groups) === 1) {
+                return 1;
             }
+
+            return 0;
         }
 
-        if ($context['currentGroup']['type'] === '#') {
-            $context['hashPattern'][] = $context['currentGroup']['count'];
-            $context['hashGroupsCount'] += 1;
+        if (str_contains('.?', $record[$nextGroup])) {
+            array_shift($groups);
+            return $this->calc(substr($record, $nextGroup + 1), $groups);
         }
+        return 0;
+    }
 
-        return $context['hashPattern'] === $groups ? 1 : 0;
+    private function dot(string $record, array $groups): int
+    {
+        return $this->calc(substr($record, 1), $groups);
     }
 }

@@ -23,10 +23,13 @@ $className = sprintf("\Dannyvdsluijs\AdventOfCode2023\Day%02d", $argv[1]);
 $object = new $className();
 $part = (int) ($argv[2] ?? 1);
 
+$time_start = microtime(true);
 $answer = match($part) {
     1 => $object->partOne(),
     2 => $object->partTwo(),
 };
+$time_end = microtime(true);
 
 
-printf("The correct answer for day %d part %d is: %s\r\n", $argv[1], $part,  $answer);
+
+printf("The correct answer for day %d part %d is: %s (%f sec)\r\n", $argv[1], $part, $answer, $time_end - $time_start);
